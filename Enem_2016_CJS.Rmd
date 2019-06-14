@@ -1,0 +1,151 @@
+---
+title: "Enem_2016_CJS"
+author: "Carlos J Sousa"
+date: "14/06/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo=FALSE)
+```
+
+## Análise exploratória
+
+Análise de conjunto de dados sobre o **ENEM 2016**  
+
+Amostra com 13730 registros de um total de mais de 9 milhões de inscritos segundo o [portal INEP](http://portal.inep.gov.br/artigo/-/asset_publisher/B4AQV9zFY7Bv/content/edicao-de-2016-registra-numero-superior-a-9-2-milhoes-de-candidatos-inscritos/21206)
+
+***
+
+```{r, include=FALSE}
+# Carregamento de bibliotecas e definição de variáveis para o script
+require(dplyr)
+require(ggplot2)
+require(plotly)
+require(readr)
+require(tidyr)
+
+id_file <- "sample_data/Microdados_Enem_2016.zip"
+
+df_enem <- readr::read_csv(unz(id_file, "Microdados_Enem_2016.csv"))
+
+```
+
+### Dados Amostrais
+
+Dos registros na amostra, podemos visualizar algumas características presentes, a fim de nortear qualquer conclusão a partir dos dados:  
+
+```{r}
+g <- df_enem %>%
+   group_by('UF' = SG_UF_RESIDENCIA) %>%
+   summarize('Total' = n()) %>%
+   ggplot (aes(UF, Total)) +
+   geom_bar(stat = "identity", fill = "dodgerblue") +
+   labs(title = "Origem de Inscritos", x = "Unidade da Federação") +
+   theme_light() 
+
+ggplotly(g)   
+```
+```{r}
+g <- df_enem %>%
+   group_by("Sexo" = TP_SEXO) %>%
+   summarize("Total" = n()) %>%
+   ggplot(aes(Sexo, Total, fill = Sexo)) +
+   geom_bar(stat = "identity") +
+   labs(title = "Distribuição de Gêneros") +
+   theme_light() +
+   theme(axis.text.x = element_blank()) +
+   scale_fill_manual(values = c("deeppink", "dodgerblue"))
+
+ggplotly(g)
+
+```
+Podemos perceber que houve mais inscrições femininas nessa amostra, assim como a predominância de dados de São Paulo, Ceará e Minas Gerais.  
+
+Como não temos acesso aos dados completos da população, quaisquer resultados de análise ou projeções devem ser levados em conta cautelosamente. Não temos informações suficientes para saber o quanto essa amostra é representativa da população geral.
+
+```{r}
+g <- df_enem %>%
+   ggplot(aes(x = NU_IDADE)) +
+   geom_histogram(bins = 20, fill = 'dodgerblue', color = "white") +
+   theme_light() +
+   labs(title = "Distribuição de Idades") +
+   xlab("Idade (anos)") +
+   ylab("Total")
+
+ggplotly(g)
+```
+Dos dados podemos também perceber que, apesar da esperada pedominância de insritos mais jovens, na casa dos 17 anos, temos uma parcela considerável de pessoas com idades mais avançadas também participando desse processo.  
+
+Outro ponto de interesse é a verificação do desempenho dos inscritos por matéria como a seguir (O aviso é referente a dados ausentes no arquivo...)
+
+```{r}
+g <- df_enem %>%
+   select(c(NU_NOTA_CN, NU_NOTA_CH, NU_NOTA_LC, NU_NOTA_MT)) %>%
+   tidyr::gather(key = "Materia", value = "Nota") %>%
+   ggplot(aes(x = Materia, y = Nota, fill = Materia)) +
+   geom_boxplot() +
+   theme_light() +
+   theme(axis.text.x = element_blank(), legend.position = "bottom") +
+   scale_fill_discrete(labels = c("Ciências Humanas", "Ciências Natureza", "Linguagens e Códigos", "Matemática")) +
+   labs(title = "Distribuição de Notas / Matéria") +
+   xlab("Matéria")
+
+ggplotly(g)
+```
+```{r}
+df_enem %>%
+   select(c("Ciências Humanas" = NU_NOTA_CN, "Ciências Natureza" = NU_NOTA_CH, 
+            "Linguagens e Códigos" = NU_NOTA_LC, "Matemática" = NU_NOTA_MT)) %>%
+   summary()
+```
+
+***
+
+## Considerações sobre segmentação solicitada
+
+Os dados disponíveis não me parecem bem ajustados para uma segmentação / classificação nos termos propostos.  
+
+Os registros apresentados não apresentam grupos identificáveis fora dos óbvios(Sexo, Tipo de Escola, Conclusão do ensino médio). Para um aprofundamento no restante das informações contidas no arquivo, seria necessária a colaboração com outros profissionais e uma definição mais detalhada dos objetivos do estudo. Por exemplo:
+
+A comparação entre o desempenho nas matérias entre cada tipo de escola mostra que escolas **Privadas** tem um desempenho mais consistente e com menos variabilidade que escolas **Públicas** nas quais notas melhores são consideradas "distoantes" da média. 
+```{r}
+var_sel <- c("TP_ESCOLA", "NU_NOTA_CN", "NU_NOTA_CH", "NU_NOTA_LC", "NU_NOTA_MT")
+var_lab <- c("1" = "Não Respondeu", "2" = "Pública", "3" = "Privada", "4" = "Exterior")
+
+g <- df_enem %>%
+   select(var_sel) %>%
+   rename("Escola" = TP_ESCOLA, "Ciencias_Naturais" = NU_NOTA_CN, "Ciencias_Humanas" = NU_NOTA_CH,
+          "Linguagem_Codigos" = NU_NOTA_LC, "Matematica" = NU_NOTA_MT) %>%
+   tidyr::gather(key = "Materia", value = "Nota", -Escola) %>%
+   ggplot(aes(x = Materia, y = Nota, fill = Materia)) +
+   geom_boxplot() +
+   theme_light() +
+   theme(axis.text.x = element_blank(), legend.position = "bottom") +
+   labs(title = "Comparação de desempenho / Tipo de Escola") +
+   facet_wrap(~Escola, labeller = labeller(Escola = var_lab))
+
+ggplotly(g)
+```
+Situação semelhante ocorre se considerarmos o desempenho nas matérias entre a situação dos inscritos referentes à situação de estudo.
+```{r}
+var_sel <- c("TP_ST_CONCLUSAO", "NU_NOTA_CN", "NU_NOTA_CH", "NU_NOTA_LC", "NU_NOTA_MT")
+var_lab <- c("1" = "Concluído", "2" = "Termina 2016", "3" = "Termina Após 2016", "4" = "Não Cursando")
+
+g <- df_enem %>%
+   select(var_sel) %>%
+   rename("Conclusao" = TP_ST_CONCLUSAO, "Ciencias_Naturais" = NU_NOTA_CN, "Ciencias_Humanas" = NU_NOTA_CH,
+          "Linguagem_Codigos" = NU_NOTA_LC, "Matematica" = NU_NOTA_MT) %>%
+   tidyr::gather(key = "Materia", value = "Nota", -Conclusao) %>%
+   ggplot(aes(x = Materia, y = Nota, fill = Materia)) +
+   geom_boxplot() +
+   theme_light() +
+   theme(axis.text.x = element_blank(), legend.position = "bottom") +
+   labs(title = "Comparação de desempenho / Conclusão") +
+   facet_wrap(~Conclusao, labeller = labeller(Conclusao = var_lab))
+   
+
+ggplotly(g)
+
+```
+Com tempo e colaboração suficientes, podemos tentar identificar SE ações direcionadas a segmentos específicos (deficiência visual / auditiva, idoso, gestante, etc) apresentam algum tipo de variação expressiva. Tal conclusão seria dependente em grande medida dos objetivos buscados e definidos em um projeto real.
